@@ -4,7 +4,7 @@
 
 - **拟人化抓取**：串行执行，每次上游请求前随机等待 **3–15 秒**，UA 轮换，不并发轰炸目标站
 - **实时反馈**：页面通过 SSE 显示阶段、当前关键词、本轮随机延迟、已抓条数
-- **开箱即用**：零第三方依赖，`go build` 出一个 exe，前端用 `//go:embed` 打进二进制
+- **开箱即用**：零第三方依赖，`go build` 出一个**单个静态二进制**（Linux 默认 `magcraw`），前端用 `//go:embed` 打进二进制
 - **可用性兜底**：列表页就能判定的小种子/广告不会再去请求详情页，省掉一次 3–15 秒等待
 
 ---
@@ -118,7 +118,13 @@ PORT=9000 ./magcraw        # systemd 安装的改 unit 里的 Environment=PORT=
 | `CI_CORS_ORIGINS` | `*` | 允许的来源，逗号分隔；设置后只回显白名单内的 Origin |
 | `CI_RATE_LIMIT` | `60` | 每 IP 每分钟请求数（仅 `/api/v1/*`），`0` 关闭 |
 
-Windows 下临时设置（当前窗口有效）：
+Linux（systemd 安装后写进 unit 的 `Environment=` 才持久；临时验证可用下面的方式）：
+
+```bash
+PORT=8900 CI_API_KEY="$(openssl rand -hex 24)" CI_RATE_LIMIT=30 ./magcraw
+```
+
+Windows（兼容保留，当前窗口有效）：
 
 ```bat
 set PORT=8900
