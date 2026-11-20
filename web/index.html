@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>磁力站抓取器</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="cs-header">
+    <div class="cs-header__inner">
+      <h1 class="cs-header__brand">磁力站抓取器</h1>
+      <p class="cs-header__hint">关键词或热榜 → 串行低速抓取 → 实时结果</p>
+    </div>
+  </header>
+
+  <main class="cs-main">
+    <section class="cs-card" aria-labelledby="submit-title">
+      <h2 class="cs-card__title" id="submit-title">抓取任务</h2>
+      <form class="cs-form" id="submit-form" novalidate>
+        <div class="cs-field">
+          <label class="cs-field__label" for="keywords-input">关键词（每行一个，也可用逗号分隔）</label>
+          <textarea class="cs-field__control" id="keywords-input" name="keywords" rows="4"
+                    placeholder="abf-399&#10;另一个关键词"></textarea>
+        </div>
+
+        <div class="cs-form__grid">
+          <div class="cs-field">
+            <label class="cs-field__label" for="hot-input">热榜条数（0–50，关键词为空时生效）</label>
+            <input class="cs-field__control" id="hot-input" name="hot" type="number" min="0" max="50" value="0">
+          </div>
+          <div class="cs-field">
+            <label class="cs-field__label" for="limit-input">条数上限（1–24）</label>
+            <input class="cs-field__control" id="limit-input" name="limit" type="number" min="1" max="24" value="5">
+          </div>
+        </div>
+
+        <div class="cs-form__check">
+          <input id="detail-toggle" name="detail" type="checkbox" checked>
+          <label class="cs-field__label" for="detail-toggle">进入详情页抓取完整磁链（更慢，信息更全）</label>
+        </div>
+
+        <div class="cs-form__actions">
+          <button class="cs-button cs-button--primary" id="job-submit" type="submit">开始抓取</button>
+          <button class="cs-button" id="job-stop" type="button" disabled>停止</button>
+        </div>
+      </form>
+      <p class="cs-notice cs-notice--error" id="form-error" role="alert" hidden></p>
+    </section>
+
+    <section class="cs-card" aria-labelledby="progress-title">
+      <h2 class="cs-card__title" id="progress-title">实时进度</h2>
+      <div class="cs-progress">
+        <span class="cs-badge" id="progress-state" data-state="idle">空闲</span>
+        <dl class="cs-stats">
+          <div class="cs-stats__item">
+            <dt class="cs-stats__label">当前阶段</dt>
+            <dd class="cs-stats__value" id="progress-stage">—</dd>
+          </div>
+          <div class="cs-stats__item">
+            <dt class="cs-stats__label">当前关键词</dt>
+            <dd class="cs-stats__value" id="progress-keyword">—</dd>
+          </div>
+          <div class="cs-stats__item">
+            <dt class="cs-stats__label">已抓条数</dt>
+            <dd class="cs-stats__value" id="progress-done">0</dd>
+          </div>
+          <div class="cs-stats__item">
+            <dt class="cs-stats__label">目标条数</dt>
+            <dd class="cs-stats__value" id="progress-total">0</dd>
+          </div>
+          <div class="cs-stats__item">
+            <dt class="cs-stats__label">当前延迟</dt>
+            <dd class="cs-stats__value" id="progress-delay">—</dd>
+          </div>
+        </dl>
+        <p class="cs-notice" id="progress-note" hidden></p>
+      </div>
+    </section>
+
+    <section class="cs-card cs-card--wide" aria-labelledby="result-title">
+      <div class="cs-card__head">
+        <h2 class="cs-card__title" id="result-title">抓取结果</h2>
+        <div class="cs-card__actions">
+          <button class="cs-button cs-button--small" id="copy-all" type="button">复制全部磁链</button>
+          <a class="cs-button cs-button--small cs-button--link" id="export-json" href="/api/export?format=json">导出 JSON</a>
+          <a class="cs-button cs-button--small cs-button--link" id="export-csv" href="/api/export?format=csv">导出 CSV</a>
+        </div>
+      </div>
+      <p class="cs-result__summary" id="result-summary">共 0 条</p>
+      <p class="cs-result__filter">过滤条件：仅 <b>.mp4</b> · 单种子 <b>&gt; 100MB</b> · 已剔除广告与推广条目</p>
+
+      <div class="cs-table-wrap">
+        <table class="cs-table" id="result-table">
+          <thead>
+            <tr>
+              <th scope="col">关键词</th>
+              <th scope="col">标题</th>
+              <th scope="col">文件名</th>
+              <th scope="col">列表大小</th>
+              <th scope="col">大小</th>
+              <th scope="col">日期</th>
+              <th scope="col">BTIH</th>
+              <th scope="col">磁力链接</th>
+            </tr>
+          </thead>
+          <tbody id="result-body"></tbody>
+        </table>
+        <p class="cs-empty" id="result-empty">暂无结果，提交任务后实时显示。</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

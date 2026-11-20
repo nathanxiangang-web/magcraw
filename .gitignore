@@ -1,0 +1,13 @@
+# 构建产物
+*.exe
+magnet-crawler
+
+# 运行时数据（每次任务的 JSON 快照）
+data/
+*.log
+
+# 临时文件
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
