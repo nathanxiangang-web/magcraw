@@ -1,0 +1,6 @@
+.git
+data/
+*.log
+magcraw
+magnet-crawler
+*.exe

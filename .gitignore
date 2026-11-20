@@ -1,6 +1,8 @@
 # 构建产物
 *.exe
+magcraw
 magnet-crawler
+magcraw.pid
 
 # 运行时数据（每次任务的 JSON 快照）
 data/

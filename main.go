@@ -268,7 +268,7 @@ func main() {
 
 	s := &server{hub: newHub(), crawl: newCrawler()}
 	s.api = newAPIV1(s)
-	log.Printf("magnet-crawler listening on :%s", port)
+	log.Printf("magcraw listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, s.routes()); err != nil {
 		log.Fatal(err)
 	}

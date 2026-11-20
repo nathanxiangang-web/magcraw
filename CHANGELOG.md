@@ -2,6 +2,19 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)，提交信息使用 Conventional Commits。
 
+## [1.1.0] - 2026-11-20
+
+### 变更
+- **默认部署方式改为 Linux**：README 的快速开始以 Linux 为主路径（一键 `install.sh` + systemd / 脚本后台 / Docker / 前台运行），Windows 的 `start.bat`、`stop.bat` 降为附录“方式三：Windows（可选）”。
+- 产物名统一为 `magcraw`（Linux 无扩展名），README 命令、Dockerfile、脚本一致；Windows 仍为 `magnet-crawler.exe`。
+
+### 新增
+- `install.sh`：root 一键安装到 `/opt/magcraw`，建 `data/`（属 `nobody`）、写 systemd unit（`ProtectSystem=strict` + 仅 `data` 可写）、`enable --now`。
+- `start.sh` / `stop.sh`：无 systemd 环境下的后台启停，带 PID 文件与健康检查。
+- `deploy` 能力内置到 unit 模板：`CI_API_KEY` / `CI_CORS_ORIGINS` / `CI_PROXY` 的注释示例。
+- `Dockerfile` + `.dockerignore`：多阶段构建，非 root 运行，`/app/data` 卷。
+- README 新增 Nginx 反代 + HTTPS 的示例（`proxy_buffering off` 供 SSE）。
+
 ## [1.0.0] - 2026-11-20
 
 ### 新增

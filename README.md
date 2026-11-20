@@ -9,36 +9,70 @@
 
 ---
 
-## 1. 快速开始
+## 1. 快速开始（Linux）
 
-### 方式一：直接运行（Windows）
+需要 Go 1.22+（只用到标准库，无 `go.sum`）。产物是**单个静态二进制**，不依赖 libc 与运行时。
 
-```bat
-cd magnet-crawler
-start.bat
-```
-
-然后浏览器打开 <http://127.0.0.1:8900>。停止：`stop.bat`。
-
-### 方式二：源码构建
-
-需要 Go 1.22+（本项目只用到标准库，无 `go.sum`）：
+### 方式一：一键部署到 systemd（推荐）
 
 ```bash
-cd magnet-crawler
-go build -o magnet-crawler.exe .      # Linux/macOS: go build -o magnet-crawler .
-./magnet-crawler.exe
+git clone https://github.com/nathanxiangang-web/magcraw.git
+cd magcraw
+go build -trimpath -ldflags "-s -w" -o magcraw .
+sudo ./install.sh
 ```
 
-> `web/` 目录必须存在（`//go:embed web/index.html` 等三条嵌入指令），源码克隆后即可编译。
+`install.sh` 做的事：二进制装到 `/opt/magcraw/magcraw`、建 `/opt/magcraw/data`（属 `nobody`，唯一可写目录）、写 `/etc/systemd/system/magcraw.service`、`systemctl enable --now`。也可以指定端口与安装目录：
+
+```bash
+sudo PORT=9000 PREFIX=/srv/magcraw ./install.sh
+sudo ./install.sh ./magcraw-linux-amd64        # 用现成的发布二进制，不现场编译
+```
+
+日常运维：
+
+```bash
+systemctl status magcraw          # 状态
+journalctl -u magcraw -f          # 日志
+sudo systemctl restart magcraw    # 重启（改过 unit 先 daemon-reload）
+sudo systemctl stop magcraw       # 停止
+```
+
+### 方式二：不用 systemd，脚本后台运行
+
+```bash
+go build -o magcraw .
+./start.sh      # 后台启动，PID 写 magcraw.pid、日志写 magcraw.log，自带健康检查
+./stop.sh       # 停止
+```
+
+### 方式三：Docker
+
+```bash
+docker build -t magcraw .
+docker run -d --name magcraw -p 8900:8900 \
+  -e CI_API_KEY="$(openssl rand -hex 24)" \
+  -v magcraw-data:/app/data \
+  magcraw
+```
+
+镜像为多阶段构建（最终层 alpine + 非 root 用户），`/app/data` 建议挂卷持久化任务快照。
+
+### 方式四：前台直接跑
+
+```bash
+go build -o magcraw . && PORT=8900 ./magcraw
+```
 
 ### 端口与监听
 
-默认监听 `:8900`（即 `0.0.0.0:8900`），本机访问 `http://127.0.0.1:8900`，局域网访问 `http://<本机IP>:8900`。改端口：
+默认监听 `:8900`（即 `0.0.0.0:8900`）：本机 `http://127.0.0.1:8900`，局域网/公网 `http://<服务器IP>:8900`。改端口：
 
 ```bash
-PORT=9000 ./magnet-crawler.exe        # PowerShell: $env:PORT=9000; .\magnet-crawler.exe
+PORT=9000 ./magcraw        # systemd 安装的改 unit 里的 Environment=PORT=
 ```
+
+> `web/` 目录必须存在（`//go:embed web/index.html` 等三条指令），克隆后直接 `go build` 即可。
 
 ---
 
@@ -182,45 +216,49 @@ console.log(items.map((i) => [i.filename, i.size, i.magnet]));
 
 ## 6. 部署
 
-### 本机 / 局域网
+### 6.1 Linux（默认路径）
 
-直接跑二进制即可，`0.0.0.0:8900` 局域网可达。Windows 开机自启动可把 `start.bat` 放进「启动」文件夹（`shell:startup`）。
+见 §1 的方式一 / 方式二。要点：
 
-### 公网给其他网站调用
+- `install.sh` 生成的 unit 使用 `User=nobody` + `ProtectSystem=strict` + `ReadWritePaths=/opt/magcraw/data`，除 `data/` 外全部只读；
+- 端口、上游、代理、Key 都通过 unit 的 `Environment=` 配置，改完执行 `sudo systemctl daemon-reload && sudo systemctl restart magcraw`；
+- 抓取是串行 + 随机延迟，**单实例即可**，不要为提速起多副本（会互相 `409`，也会加重上游负载）。
+
+### 6.2 反向代理 + HTTPS（给外部网站调用）
 
 ```nginx
-location /api/v1/ {
-    proxy_pass http://127.0.0.1:8900;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;   # 限流按真实 IP 需要它
+server {
+    listen 443 ssl http2;
+    server_name crawler.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8900;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /api/v1/ {
+        proxy_pass http://127.0.0.1:8900;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;        # SSE 与长轮询必须关闭缓冲
+        proxy_read_timeout 130s;    # 同步接口 wait 上限 120s
+    }
 }
 ```
 
-外露前**务必**：`CI_API_KEY` 设为随机串（`openssl rand -hex 24`）、`CI_CORS_ORIGINS` 只放你的站点、`CI_RATE_LIMIT` 按需收紧。没有 key 的服务等于把出口公开给别人刷。
+外露前**务必**：`CI_API_KEY` 设为随机串（`openssl rand -hex 24`）、`CI_CORS_ORIGINS` 只放自己的站点、`CI_RATE_LIMIT` 收紧。没有 key 的服务等于把出口公开给别人刷。
 
-### Linux 服务器常驻（systemd）
+### 6.3 Windows（可选，兼容保留）
 
-```ini
-# /etc/systemd/system/magcraw.service
-[Unit]
-Description=magcraw magnet crawler
-After=network-online.target
-
-[Service]
-WorkingDirectory=/opt/magcraw
-ExecStart=/opt/magcraw/magcraw
-Restart=always
-Environment=PORT=8900
-Environment=CI_API_KEY=替换成你的随机串
-Environment=CI_RATE_LIMIT=30
-
-[Install]
-WantedBy=multi-user.target
+```bat
+cd magnet-crawler
+start.bat            :: 或直接双击 magnet-crawler.exe
+stop.bat
 ```
 
-```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now magcraw
-```
+Windows 产物名为 `magnet-crawler.exe`（`go build -o magnet-crawler.exe .`）；开机自启把 `start.bat` 的快捷方式放进 `shell:startup`。
 
 ---
 
@@ -228,7 +266,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now magcraw
 
 | 现象 | 原因与处理 |
 |---|---|
-| 浏览器打不开 8900 | 进程没起来：本机双击 `start.bat`；查端口占用 `netstat -ano \| findstr :8900` |
+| 打不开 8900 | 服务没起来：`systemctl status magcraw`、`journalctl -u magcraw -n 50`；查端口 `ss -ltnp \| grep 8900` |
 | 抓取一直 `no magnet` / 全被过滤 | 该关键词确实没有合格条目；看进度区 `note` 的具体原因（`ad` / `under 100MB` / `no mp4`） |
 | `string` 层面的连接被重置（Linux 上跑） | 目标站对部分地区链路会 `Recv failure`；用 `CI_PROXY=socks5://...` 指定可用出口，或在能直连的机器上跑 |
 | 任务跑到一半 `409 job_running` | 单任务串行是刻意设计；等当前任务结束再提交 |
@@ -240,18 +278,21 @@ sudo systemctl daemon-reload && sudo systemctl enable --now magcraw
 ## 8. 目录结构
 
 ```
-magnet-crawler/
-├── main.go           路由、SSE、导出、静态资源嵌入
-├── crawler.go         抓取引擎、解析、随机限速、过滤规则
-├── api_v1.go          对外 API：CORS / API Key / 限流 / 任务历史 / OpenAPI
+magcraw/                       # 仓库根即项目根
+├── main.go                    路由、SSE、导出、静态资源嵌入
+├── crawler.go                 抓取引擎、解析、随机限速、过滤规则
+├── api_v1.go                  对外 API：CORS / API Key / 限流 / 任务历史 / OpenAPI
 ├── go.mod
 ├── web/
-│   ├── index.html     页面结构（语义化 id）
-│   ├── app.js         EventSource 消费事件、表格渲染、复制与导出
-│   └── styles.css     --cs-* 设计令牌 + cs- BEM 组件
-├── start.bat / stop.bat / run-service.bat
-├── data/              运行时产物（每次任务一个 job-<ts>.json，已在 .gitignore）
-└── README.md
+│   ├── index.html             页面结构（语义化 id）
+│   ├── app.js                 EventSource 消费事件、表格渲染、复制与导出
+│   └── styles.css             --cs-* 设计令牌 + cs- BEM 组件
+├── install.sh                 Linux 一键部署（systemd，装到 /opt/magcraw）
+├── start.sh / stop.sh         无 systemd 时的后台启停（PID + 健康检查）
+├── Dockerfile / .dockerignore 多阶段构建镜像（非 root 运行）
+├── start.bat / stop.bat / run-service.bat   Windows 可选
+├── data/                      运行时产物（每次任务一个 job-<ts>.json，已 gitignore）
+└── README.md / CHANGELOG.md
 ```
 
 ---
